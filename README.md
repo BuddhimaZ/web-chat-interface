@@ -21,6 +21,8 @@ Edit `.env` and set:
 
 ```
 VITE_HOST_BASE_URL=https://your-pipecat-server
+# Optional: override full WebSocket URL (skips base/agent join)
+# VITE_WS_URL=ws://127.0.0.1:8000/api/agent/web/chat/ws/YOUR_AGENT_ID
 ```
 
 2. Install dependencies:
@@ -49,8 +51,8 @@ yarn build
 
 ## Notes
 
-- ws/wss is picked based on http/https in `VITE_HOST_BASE_URL`.
+- ws/wss is picked based on http/https in `VITE_HOST_BASE_URL` unless you set `VITE_WS_URL` to override.
 - Text chat uses `@pipecat-ai/client-js` with `@pipecat-ai/websocket-transport`.
-- Audio is disabled in this sample; you can enable mic by passing `enableMic: true` into `usePipecatChat` in `Chat.tsx`.
+- Audio is disabled in this sample; you can enable mic by setting `enableMic: true` when creating the `PipecatClient`.
 - Handshake: On connect, the client immediately sends the RTVI `client-ready` message (version `1.0`). The server should respond with `bot-ready`. The UI can accept typing as soon as transport is connected, but sending text is internally held until `bot-ready` arrives per the RTVI standard.
-- Debug logging: enable with `?debug=1` in the URL or set `VITE_DEBUG_CHAT=true` in your env. This prints transport state changes, handshake events, and sendText timing.
+- Debug logging: set `VITE_DEBUG_CHAT=true` or add `?debug=1` to the URL to print transport state changes and timing (not required).
