@@ -47,6 +47,7 @@ export function usePipecatChat(opts?: Partial<UsePipecatChatOptions>) {
     const currentBotMsgIdRef = useRef<string | null>(null);
 
     const clientRef = useRef<PipecatClient | null>(null);
+    const isConnectingRef = useRef(false);
 
     const wsUrl = useMemo(() => {
         try {
@@ -73,10 +74,12 @@ export function usePipecatChat(opts?: Partial<UsePipecatChatOptions>) {
 
     const connect = useCallback(async () => {
         if (!wsUrl) return;
+        if (isConnectingRef.current) return; // avoid re-entrancy
+        if (clientRef.current) return; // already have a client/session
         try {
+            isConnectingRef.current = true;
             setStatus("connecting");
 
-            // Create client
             const client = new PipecatClient({
                 transport: new WebSocketTransport(),
                 enableMic: false,
@@ -102,51 +105,48 @@ export function usePipecatChat(opts?: Partial<UsePipecatChatOptions>) {
                         const text = data?.text ?? "";
                         if (!text) return;
                         setMessages((prev) => {
-                            // Stream into current assistant message if in progress
                             const id = currentBotMsgIdRef.current;
                             if (id && prev.some((m) => m.id === id)) {
                                 return prev.map((m) => (m.id === id ? { ...m, text: m.text + text } : m));
                             }
-                            // Start a new assistant message chunk
                             const newId = crypto.randomUUID();
                             currentBotMsgIdRef.current = newId;
                             return [...prev, { id: newId, role: "assistant", text }];
                         });
                     },
                     onBotTranscript: (data) => {
-                        // Some backends send sentence-aggregated transcripts; mark them final
                         const text = (data && typeof data === "object" && "text" in data)
                             ? (data as { text?: string }).text ?? ""
                             : "";
                         if (!text) return;
                         const newId = crypto.randomUUID();
                         setMessages((prev) => [...prev, { id: newId, role: "assistant", text, final: true }]);
-                        // Reset current streaming id
                         currentBotMsgIdRef.current = null;
                     },
                 },
             });
 
             clientRef.current = client;
-
-            // Connect to the WebSocket endpoint
             await client.connect({ wsUrl });
-            // Note: PipecatClient sends client-ready internally when appropriate.
         } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
             console.error("Connect failed", msg);
             setError(msg);
             setStatus("error");
+            clientRef.current = null;
+        } finally {
+            isConnectingRef.current = false;
         }
     }, [wsUrl]);
 
     const disconnect = useCallback(async () => {
         try {
             await clientRef.current?.disconnect();
-            clientRef.current = null;
-            setStatus("disconnected");
         } catch {
             // ignore
+        } finally {
+            clientRef.current = null;
+            setStatus("disconnected");
         }
     }, []);
 
@@ -159,23 +159,29 @@ export function usePipecatChat(opts?: Partial<UsePipecatChatOptions>) {
         const client = clientRef.current;
         if (!client) throw new Error("Client not connected");
         if (!text.trim()) return;
-
-        // Echo user message locally
         setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "user", text }]);
-        // Reset current bot streaming id for the next response
         currentBotMsgIdRef.current = null;
-
         await client.sendText(text, { audio_response: false, run_immediately: true });
     }, []);
 
-    // Auto-connect when wsUrl available
+    // Gesture-gated auto connect: try connecting on first user interaction
     useEffect(() => {
         if (!wsUrl) return;
-        connect();
-        return () => {
-            disconnect();
+        let done = false;
+        const handler = () => {
+            if (done) return;
+            done = true;
+            window.removeEventListener("pointerdown", handler);
+            window.removeEventListener("keydown", handler);
+            void connect();
         };
-    }, [wsUrl, connect, disconnect]);
+        window.addEventListener("pointerdown", handler, { once: true });
+        window.addEventListener("keydown", handler, { once: true });
+        return () => {
+            window.removeEventListener("pointerdown", handler);
+            window.removeEventListener("keydown", handler);
+        };
+    }, [wsUrl, connect]);
 
     return {
         ready: status === "ready",

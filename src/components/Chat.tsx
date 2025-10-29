@@ -41,6 +41,8 @@ export default function Chat() {
     setInput("");
   };
 
+  const showConnect = !ready && (status === "idle" || status === "disconnected" || status === "error");
+
   return (
     <div className="app">
       <header className="header">
@@ -115,8 +117,8 @@ export default function Chat() {
           {ready ? (
             <button className="button secondary" onClick={() => disconnect()}>Disconnect</button>
           ) : (
-            <button className="button secondary" onClick={() => reconnect()} disabled={!wsUrl}>
-              Reconnect
+            <button className="button secondary" onClick={() => reconnect()} disabled={!wsUrl || status === "connecting"}>
+              {status === "connecting" ? "Connecting…" : showConnect ? "Connect" : "Reconnect"}
             </button>
           )}
         </div>
