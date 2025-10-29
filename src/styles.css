@@ -1,0 +1,47 @@
+/* Modern, clean chat UI */
+:root{
+  --bg: #0b1020;
+  --panel: #111735;
+  --panel-2: #0f1630;
+  --text: #e8ecf8;
+  --muted: #9aa3b2;
+  --primary: #6aa6ff;
+  --primary-2: #3d7fff;
+  --danger: #ff6666;
+  --divider: rgba(255,255,255,0.08);
+  --user-bubble: #1a224a;
+  --bot-bubble: #0f1a39;
+}
+*{box-sizing:border-box}
+html,body,#root{height:100%}
+body{margin:0;background:linear-gradient(180deg,var(--bg),#070a16);color:var(--text);font:14px/1.4 Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+
+.app{display:flex;flex-direction:column;height:100%}
+.header{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--divider);background:rgba(0,0,0,0.2);backdrop-filter: blur(6px);position:sticky;top:0;z-index:10}
+.header .title{font-weight:600;letter-spacing:0.2px}
+.header .status{margin-left:auto;font-size:12px;color:var(--muted)}
+.header .status.ready{color:#50e3a4}
+.header .status.error{color:var(--danger)}
+
+.container{max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:0;flex:1;width:100%}
+.chat{flex:1;overflow:auto;padding:20px}
+.messages{display:flex;flex-direction:column;gap:12px}
+.bubble{max-width:80%;padding:12px 14px;border-radius:14px;line-height:1.5;border:1px solid var(--divider);box-shadow:0 6px 16px rgba(0,0,0,0.2)}
+.msg{display:flex;gap:10px}
+.msg.user{justify-content:flex-end}
+.msg.user .bubble{background:var(--user-bubble)}
+.msg.bot .bubble{background:var(--bot-bubble)}
+.role{font-size:11px;color:var(--muted);margin-bottom:6px}
+
+.composer{border-top:1px solid var(--divider);padding:12px;background:linear-gradient(180deg,var(--panel-2),var(--panel));}
+.composer-inner{display:flex;gap:10px;max-width:960px;margin:0 auto}
+.input{flex:1;background:#0b122b;color:var(--text);border:1px solid var(--divider);border-radius:12px;padding:12px 14px;outline:none;min-height:44px}
+.button{background:var(--primary);border:none;color:white;padding:0 16px;border-radius:10px;cursor:pointer;min-width:86px;font-weight:600}
+.button:hover{background:var(--primary-2)}
+.button.secondary{background:transparent;color:var(--text);border:1px solid var(--divider);}
+
+.empty{opacity:0.7;text-align:center;margin-top:24px}
+.error{padding:10px 12px;border:1px solid rgba(255,0,0,0.2);background:rgba(255,0,0,0.06);color:#ffb3b3;border-radius:10px}
+.hint{font-size:12px;color:var(--muted);margin-top:8px}
+
+.footer-note{font-size:11px;color:var(--muted);text-align:center;padding:10px}
