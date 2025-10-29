@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RTVIEvent, RTVIMessage as RTVIMessageValue, setAboutClient } from "@pipecat-ai/client-js";
-import type { RTVIMessage as RTVIMessageType } from "@pipecat-ai/client-js";
+import { RTVIMessage } from "@pipecat-ai/client-js";
+import { RTVIMessageType } from "@pipecat-ai/client-js";
 import { usePipecatClient } from "@pipecat-ai/client-react";
 
 export type ChatMessage = {
@@ -39,6 +40,26 @@ export function usePipecatChat({ wsUrl, enableMic = false, debug = false }: UseP
     const log = useCallback((...args: unknown[]) => {
         if (debug) console.debug("[chat]", ...args);
     }, [debug]);
+
+    // Send RTVI client-ready once per session, preferring client API with transport fallback
+    const sendClientReadyOnce = useCallback(() => {
+        if (!client || clientReadySentRef.current) return;
+        try {
+            log("send client-ready (rtvi)");
+            const client_ready = RTVIMessage.clientReady();
+            client.sendClientMessage(RTVIMessageType.CLIENT_READY, client_ready.data);
+            clientReadySentRef.current = true;
+        } catch (e1) {
+            log("client.sendClientMessage failed, trying transport fallback", e1);
+            try {
+                (client.transport as unknown as { sendMessage: (msg: unknown) => void })
+                    ?.sendMessage(RTVIMessageValue.clientReady());
+                clientReadySentRef.current = true;
+            } catch (e2) {
+                log("transport fallback failed to send client-ready", e2);
+            }
+        }
+    }, [client, log]);
 
     // client is supplied by PipecatClientProvider; we rely on events for state
 
@@ -125,6 +146,8 @@ export function usePipecatChat({ wsUrl, enableMic = false, debug = false }: UseP
     useEffect(() => {
         const onConnected = () => {
             log("event: Connected");
+            // Ensure client-ready is sent once when Connected fires
+            sendClientReadyOnce();
             setConnected(true);
         };
         const onDisconnected = () => {
@@ -137,7 +160,7 @@ export function usePipecatChat({ wsUrl, enableMic = false, debug = false }: UseP
             setReady(true);
             botReadyRef.current?.resolve();
         };
-        const onMessageError = (msg: RTVIMessageType) => {
+        const onMessageError = (msg: RTVIMessage) => {
             log("event: MessageError", msg);
             const data = (msg as unknown as { data?: { message?: string } }).data;
             setError(data?.message ?? "Message error");
@@ -146,6 +169,8 @@ export function usePipecatChat({ wsUrl, enableMic = false, debug = false }: UseP
             log("event: TransportStateChanged", state);
             if (state === "connected") {
                 setConnected(true);
+                // Also try to send client-ready at transport connected
+                sendClientReadyOnce();
             } else if (state === "ready") {
                 setConnected(true);
                 setReady(true);
@@ -189,18 +214,6 @@ export function usePipecatChat({ wsUrl, enableMic = false, debug = false }: UseP
         client.on(RTVIEvent.MessageError, onMessageError);
         client.on(RTVIEvent.TransportStateChanged, (state: string) => {
             onTransportStateChanged(state);
-            // Explicitly send RTVI client-ready when transport hits 'connected' once per session
-            if (state === "connected" && !clientReadySentRef.current) {
-                try {
-                    log("send client-ready (rtvi) after connected");
-                    // transport is proxied but exposes sendMessage
-                    (client.transport as unknown as { sendMessage: (msg: unknown) => void })
-                        ?.sendMessage(RTVIMessageValue.clientReady());
-                    clientReadySentRef.current = true;
-                } catch (e) {
-                    log("failed to send client-ready", e);
-                }
-            }
         });
         client.on(RTVIEvent.BotTranscript, onBotTranscript);
         client.on(RTVIEvent.BotLlmText, onBotLlmText);
@@ -215,7 +228,7 @@ export function usePipecatChat({ wsUrl, enableMic = false, debug = false }: UseP
             client.off(RTVIEvent.BotTranscript, onBotTranscript);
             client.off(RTVIEvent.BotLlmText, onBotLlmText);
         };
-    }, [client, log, appendAssistantMessage]);
+    }, [client, log, appendAssistantMessage, sendClientReadyOnce]);
 
     return {
         client,
